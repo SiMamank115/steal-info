@@ -9,7 +9,8 @@ function removeEmpty(obj) {
     return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v != null));
 }
 
-app.use(express.static("public"));
+app.use("/.well-known/pki-validation",express.static("ssl"));
+app.use(express.static(".well-known"));
 app.set("view engine", "pug");
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
